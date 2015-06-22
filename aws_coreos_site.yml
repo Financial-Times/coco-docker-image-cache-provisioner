@@ -11,43 +11,17 @@
     - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]*)$', '\\1') }}"
       register:  cp
 
-    - name: Mirror ELB
-      ec2_elb_lb:
-        aws_access_key: "{{ aws_access_key_id }}"
-        aws_secret_key: "{{ aws_secret_access_key }}"
-        region: "{{region}}"
-        name: "fleet-mirror-elb"
-        state: present
-        zones:
-          - eu-west-1a
-        listeners:
-          - protocol: http
-            load_balancer_port: 80
-            instance_port: 8080
-        health_check:
-          ping_protocol: tcp # options are http, https, ssl, tcp
-          ping_port: 8080
-          #ping_path: "/index.html" # not required for tcp or ssl
-          response_timeout: 5 # seconds
-          interval: 30 # seconds
-          unhealthy_threshold: 2
-          healthy_threshold: 10
-    
     - name: Set up fleet security group
       ec2_group:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: fleet_sg
+        name: fleet_mirror_sg
         description: Fleet secutiy group
         rules:
           - proto: tcp
             from_port: 22
             to_port: 22
-            cidr_ip: 0.0.0.0/0
-          - proto: tcp
-            from_port: 80
-            to_port: 80
             cidr_ip: 0.0.0.0/0
           - proto: tcp
             from_port: 0
@@ -58,7 +32,31 @@
             from_port: 0
             to_port: 65535
             cidr_ip: 0.0.0.0/0
-      register: fleet_group
+      register: fleet_mirror_sg
+
+    - name: Mirror ELB
+      ec2_elb_lb:
+        aws_access_key: "{{ aws_access_key_id }}"
+        aws_secret_key: "{{ aws_secret_access_key }}"
+        region: "{{region}}"
+        name: "fleet-mirror-elb"
+        state: present
+        security_group_ids: '{{fleet_mirror_sg.id}}'
+        zones:
+          - eu-west-1a
+        listeners:
+          - protocol: http
+            load_balancer_port: 80
+            instance_port: 8080
+        purge_listeners: True
+        health_check:
+          ping_protocol: tcp # options are http, https, ssl, tcp
+          ping_port: 8080
+          #ping_path: "/index.html" # not required for tcp or ssl
+          response_timeout: 5 # seconds
+          interval: 30 # seconds
+          unhealthy_threshold: 2
+          healthy_threshold: 10
 
     - name: Provision m3.medium instances
       ec2:
@@ -66,7 +64,7 @@
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
         zone: eu-west-1a
-        group: fleet_sg
+        group: fleet_mirror_sg
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
