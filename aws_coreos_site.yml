@@ -16,7 +16,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: fleet_mirror_sg
+        name: registry_sg
         description: Fleet secutiy group
         rules:
           - proto: tcp
@@ -32,16 +32,16 @@
             from_port: 0
             to_port: 65535
             cidr_ip: 0.0.0.0/0
-      register: fleet_mirror_sg
+      register: registry_sg
 
     - name: Mirror ELB
       ec2_elb_lb:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "fleet-mirror-elb"
+        name: "registry-elb"
         state: present
-        security_group_ids: '{{fleet_mirror_sg.id}}'
+        security_group_ids: '{{registry_sg.group_id}}'
         zones:
           - eu-west-1a
         listeners:
@@ -64,7 +64,7 @@
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
         zone: eu-west-1a
-        group: fleet_mirror_sg
+        group: registry_sg
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
@@ -91,7 +91,7 @@
         region: "{{region}}"
         module: ec2_elb
         instance_id: "{{ item.id }}"
-        ec2_elbs: "fleet-mirror-elb"
+        ec2_elbs: "registry-elb"
         state: 'present'
       with_items: "{{ ec2_small.tagged_instances }}"
 
