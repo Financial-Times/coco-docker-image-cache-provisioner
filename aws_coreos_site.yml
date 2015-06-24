@@ -41,7 +41,7 @@
         region: "{{region}}"
         name: "fleet-mirror-elb"
         state: present
-        security_group_ids: '{{fleet_mirror_sg.id}}'
+        security_group_ids: '{{fleet_mirror_sg.group_id}}'
         zones:
           - eu-west-1a
         listeners:
