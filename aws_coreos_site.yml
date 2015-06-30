@@ -43,7 +43,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "registry-elb"
+        name: "{{cp.msg}}-cluster-elb"
         state: present
         security_group_ids: '{{registry_sg.group_id}}'
         zones:
