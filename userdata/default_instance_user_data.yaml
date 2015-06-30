@@ -20,6 +20,19 @@ coreos:
       command: start
     - name: fleet.service
       command: start
+    - name: key-register.service
+      command: start
+      content: |
+          [Unit]
+          Description=Add secret keys to etcd
+          After=etcd.service
+
+          [Service]
+          Type=oneshot
+          ExecStartPre=/bin/sh -c "sleep 5"
+          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_access_key_id {{ aws_access_key_id }};"
+          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_secret_access_key {{ aws_secret_access_key }};"
+          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/cluster_id {{cp.msg}};"
     - name: makefs.service
       command: start
       content: |
