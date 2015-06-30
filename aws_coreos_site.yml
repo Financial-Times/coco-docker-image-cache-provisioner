@@ -8,7 +8,7 @@
     - keys.yaml
 
   tasks:
-    - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]*)$', '\\1') }}"
+    - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]{12})[\\w]*$', '\\1') }}"
       register:  cp
 
     - name: Set up fleet security group (this is a dup of the cluster SG)
@@ -43,7 +43,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "{{cp.msg}}-cluster-elb"
+        name: "registry-elb"
         state: present
         security_group_ids: '{{registry_sg.group_id}}'
         zones:
@@ -53,11 +53,11 @@
         listeners:
           - protocol: http
             load_balancer_port: 80
-            instance_port: 8080
+            instance_port: 80
         purge_listeners: True
         health_check:
           ping_protocol: tcp # options are http, https, ssl, tcp
-          ping_port: 8080
+          ping_port: 80
           #ping_path: "/index.html" # not required for tcp or ssl
           response_timeout: 5 # seconds
           interval: 30 # seconds
