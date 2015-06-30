@@ -89,15 +89,3 @@
 
     - debug: msg="ec2_small ips {{ item.public_ip }}"
       with_items: "{{ ec2_small.tagged_instances }}"
-
-    - name: Defualt Instance Register
-      local_action:
-        aws_access_key: "{{ aws_access_key_id }}"
-        aws_secret_key: "{{ aws_secret_access_key }}"
-        region: "{{region}}"
-        module: ec2_elb
-        instance_id: "{{ item.id }}"
-        ec2_elbs: "registry-elb"
-        state: 'present'
-      with_items: "{{ ec2_small.tagged_instances }}"
-
