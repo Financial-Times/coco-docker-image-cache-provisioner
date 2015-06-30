@@ -33,22 +33,6 @@ coreos:
           ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_access_key_id {{ aws_access_key_id }};"
           ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_secret_access_key {{ aws_secret_access_key }};"
           ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/cluster_id {{cp.msg}};"
-    - name: makefs.service
-      command: start
-      content: |
-        [Unit]
-        Before=vol.mount
-        [Service]
-        Type=oneshot
-        ExecStart=/bin/bash -c "/usr/sbin/fsck /dev/xvdf || /usr/sbin/mkfs.ext4 /dev/xvdf"
-        ExecStart=/bin/bash -c "/usr/bin/test -e /vol || /usr/bin/mkdir /vol"
-    - name: vol.mount
-      command: start
-      content: |
-        [Mount]
-        What=/dev/xvdf
-        Where=/vol
-        Type=ext4
     - name: deploy-deployer.service
       command: start
       content: |

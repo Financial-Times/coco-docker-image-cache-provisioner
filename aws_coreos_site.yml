@@ -79,8 +79,6 @@
         volumes:
           - device_name: /dev/xvda
             volume_size: 20
-          - device_name: /dev/xvdf
-            volume_size: 50
         count_tag:
           Name: "{{cp.msg}}_fleet_default"
         instance_tags:
