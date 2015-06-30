@@ -11,12 +11,12 @@
     - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]*)$', '\\1') }}"
       register:  cp
 
-    - name: Set up fleet security group
+    - name: Set up fleet security group (this is a dup of the cluster SG)
       ec2_group:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: registry_sg
+        name: fleet_sg
         description: Fleet secutiy group
         rules:
           - proto: tcp
@@ -38,7 +38,7 @@
             cidr_ip: 0.0.0.0/0
       register: registry_sg
 
-    - name: Mirror ELB
+    - name: Registry ELB
       ec2_elb_lb:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
@@ -48,6 +48,8 @@
         security_group_ids: '{{registry_sg.group_id}}'
         zones:
           - eu-west-1a
+          - eu-west-1b
+          - eu-west-1c
         listeners:
           - protocol: http
             load_balancer_port: 80
