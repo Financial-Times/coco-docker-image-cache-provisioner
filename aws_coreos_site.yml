@@ -16,8 +16,8 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: fleet_sg
-        description: Fleet secutiy group
+        name: registry
+        description: Registry secutiy group
         rules:
           - proto: tcp
             from_port: 22
@@ -78,7 +78,7 @@
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
         zone: eu-west-1a
-        group: registry_sg
+        group: registry
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
@@ -88,9 +88,9 @@
           - device_name: /dev/xvda
             volume_size: 20
         count_tag:
-          Name: "{{cp.msg}}_fleet_default"
+          Name: "{{cp.msg}}_registry_default"
         instance_tags:
-          Name: "{{cp.msg}}_fleet_default"
+          Name: "{{cp.msg}}_registry_default"
       register: ec2_small
 
     - debug: msg="ec2_small ips {{ item.public_ip }}"
