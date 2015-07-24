@@ -3,21 +3,51 @@
 
   vars:
     region: eu-west-1
-    ami: ami-5f2f5528
+    az: a
+    ami: ami-50f4b927
+    env: p
+    ipcode: P295
+    systemCode: "CoreOS-Docker-Image-Registry"
+    description: "CoreOS-Docker-Image-Registry"
+    teamDL: "george.angel@ft.com"
+
   vars_files:
     - keys.yaml
 
   tasks:
-    - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]{12})[\\w]*$', '\\1') }}"
+    - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]{8})[\\w]*$', '\\1') }}"
       register:  cp
 
-    - name: Set up fleet security group (this is a dup of the cluster SG)
+    - ec2_vpc:
+        aws_access_key: "{{ aws_access_key_id }}"
+        aws_secret_key: "{{ aws_secret_access_key }}"
+        region: "{{region}}"
+        state: present
+        cidr_block: 172.23.0.0/16
+        resource_tags: {"Name": "coreos-up", "env": "{{env}}", "ipcode": "{{ipcode}}", "systemCode": "{{systemCode}}", "description": "{{description}}", "teamDL": "{{teamDL}}"}
+        subnets:
+          - cidr: 172.23.0.0/16
+            az:  "{{ region }}{{az}}"
+            resource_tags: {"Name": "coreos-up", "env": "{{env}}", "ipcode": "{{ipcode}}", "systemCode": "{{systemCode}}", "description": "{{description}}", "teamDL": "{{teamDL}}"}
+        internet_gateway: True
+        route_tables:
+          - subnets:
+              - 172.23.0.0/16
+            routes:
+              - dest: 0.0.0.0/0
+                gw: igw
+      register: vpc
+
+    - debug: msg="VPC {{ vpc }}"
+
+    - name: Set up fleet security group
       ec2_group:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: registry
-        description: Registry secutiy group
+        name: "coreos-registry-{{ cp.msg }}"
+        description: Docker image registry security group
+        vpc_id: "{{ vpc.vpc_id }}"
         rules:
           - proto: tcp
             from_port: 22
@@ -30,13 +60,28 @@
           - proto: tcp
             from_port: 0
             to_port: 65535
-            cidr_ip: 172.31.0.0/16
+            cidr_ip: 172.23.0.0/16
         rules_egress:
           - proto: tcp
             from_port: 0
             to_port: 65535
             cidr_ip: 0.0.0.0/0
-      register: registry_sg
+      register: registry_group
+
+    - name: Tag UP CoreOS security group
+      ec2_tag:
+        resource: "{{registry_group.group_id}}"
+        aws_access_key: "{{ aws_access_key_id }}"
+        aws_secret_key: "{{ aws_secret_access_key }}"
+        region: "{{region}}"
+        state: present
+        tags:
+          Name: "coreos-registry-{{ cp.msg }}"
+          env: "{{env}}"
+          ipcode: "{{ipcode}}"
+          systemCode: "{{systemCode}}"
+          description: "{{description}}"
+          teamDL: "{{teamDL}}"
 
     - s3:
         aws_access_key: "{{ aws_access_key_id }}"
@@ -53,7 +98,7 @@
         region: "{{region}}"
         name: "registry-elb"
         state: present
-        security_group_ids: '{{registry_sg.group_id}}'
+        security_group_ids: '{{registry_group.group_id}}'
         zones:
           - eu-west-1a
           - eu-west-1b
@@ -77,8 +122,8 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        zone: eu-west-1a
-        group: registry
+        zone: "{{region}}{{az}}"
+        group: registry_group
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
@@ -88,9 +133,15 @@
           - device_name: /dev/xvda
             volume_size: 20
         count_tag:
-          Name: "{{cp.msg}}_registry_default"
+          Name: "ftreg{{cp.msg}}-caw1{{az}}-eu-p"
         instance_tags:
-          Name: "{{cp.msg}}_registry_default"
+          Name: "ftreg{{cp.msg}}-caw1{{az}}-eu-p"
+          environment: "{{env}}"
+          ipCode: "{{ipcode}}"
+          systemCode: "{{systemCode}}"
+          description: "{{description}}"
+          teamDL: "{{teamDL}}"
+          stopSchedule: "nostop"
       register: ec2_small
 
     - debug: msg="ec2_small ips {{ item.public_ip }}"
