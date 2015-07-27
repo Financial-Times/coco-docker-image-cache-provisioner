@@ -96,7 +96,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "registry-elb"
+        name: "coreos-registry-{{cp.msg}}"
         state: present
         security_group_ids: '{{registry_group.group_id}}'
         zones:
@@ -116,11 +116,12 @@
           interval: 30 # seconds
           unhealthy_threshold: 2
           healthy_threshold: 10
+      register: registry_elb
 
      - name: tag ELB
-       shell: ". .venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-up-{{cp.msg}} --tags Key=Name,Value=coreos-up-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
+       shell: ". .venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
 
-    - debug: msg="cluster_elb dns {{ cluster_elb.elb.dns_name }}"
+    - debug: msg="registry_dns {{ registry_elb.elb.dns_name }}"
 
     - name: Provision m3.medium instances
       ec2:
