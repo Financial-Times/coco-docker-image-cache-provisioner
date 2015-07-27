@@ -117,6 +117,11 @@
           unhealthy_threshold: 2
           healthy_threshold: 10
 
+     - name: tag ELB
+       shell: ". .venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-up-{{cp.msg}} --tags Key=Name,Value=coreos-up-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
+
+    - debug: msg="cluster_elb dns {{ cluster_elb.elb.dns_name }}"
+
     - name: Provision m3.medium instances
       ec2:
         aws_access_key: "{{ aws_access_key_id }}"
