@@ -119,7 +119,7 @@
       register: registry_elb
 
      - name: tag ELB
-       shell: ". .venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
+       shell: ". /.venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
 
     - debug: msg="registry_dns {{ registry_elb.elb.dns_name }}"
 
