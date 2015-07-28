@@ -24,11 +24,11 @@
         region: "{{region}}"
         state: present
         cidr_block: 172.23.0.0/16
-        resource_tags: {"Name": "coreos-up", "env": "{{env}}", "ipcode": "{{ipcode}}", "systemCode": "{{systemCode}}", "description": "{{description}}", "teamDL": "{{teamDL}}"}
+        resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS", "teamDL": "george.angel@ft.com}"}
         subnets:
           - cidr: 172.23.0.0/16
             az:  "{{ region }}{{az}}"
-            resource_tags: {"Name": "coreos-up", "env": "{{env}}", "ipcode": "{{ipcode}}", "systemCode": "{{systemCode}}", "description": "{{description}}", "teamDL": "{{teamDL}}"}
+            resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS", "teamDL": "george.angel@ft.com}"}
         internet_gateway: True
         route_tables:
           - subnets:
@@ -87,7 +87,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        bucket: "coco-docker-registry"
+        bucket: "coco-docker-registry-{{cp.msg}}"
         object: "/registry"
         mode: "create"
 
@@ -99,10 +99,8 @@
         name: "coreos-registry-{{cp.msg}}"
         state: present
         security_group_ids: '{{registry_group.group_id}}'
-        zones:
-          - eu-west-1a
-          - eu-west-1b
-          - eu-west-1c
+        subnets:
+          - "{{ vpc.subnets[0].id }}"
         listeners:
           - protocol: http
             load_balancer_port: 80
@@ -118,8 +116,8 @@
           healthy_threshold: 10
       register: registry_elb
 
-     - name: tag ELB
-       shell: ". /.venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
+    - name: tag ELB
+      shell: ". /.venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
 
     - debug: msg="registry_dns {{ registry_elb.elb.dns_name }}"
 
@@ -128,16 +126,17 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        zone: "{{region}}{{az}}"
-        group: registry_group
+        group: "coreos-registry-{{ cp.msg }}"
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
         exact_count: 1
         user_data: "{{ lookup('template', 'userdata/default_instance_user_data.yaml') }}"
+        vpc_subnet_id: "{{ vpc.subnets[0].id }}"
+        assign_public_ip: yes
         volumes:
           - device_name: /dev/xvda
-            volume_size: 20
+            volume_size: 30
         count_tag:
           Name: "ftreg{{cp.msg}}-caw1{{az}}-eu-p"
         instance_tags:
