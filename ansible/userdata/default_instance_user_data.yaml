@@ -32,7 +32,7 @@ coreos:
           ExecStartPre=/bin/sh -c "sleep 5"
           ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_access_key_id {{ aws_access_key_id }};"
           ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_secret_access_key {{ aws_secret_access_key }};"
-          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/cluster_id {{cp.msg}};"
+          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/elb_name coreos-registry-{{cp.msg}};"
     - name: deploy-deployer.service
       command: start
       content: |
