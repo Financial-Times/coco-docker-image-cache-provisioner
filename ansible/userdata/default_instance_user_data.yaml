@@ -3,20 +3,67 @@
 coreos:
   update:
     reboot-strategy: best-effort
-  etcd:
+  etcd2:
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new?size=3
     discovery: {{token}}
-    addr: $private_ipv4:4001
-    peer-addr: $private_ipv4:7001
-    # give etcd more time if it's under heavy load - prevent leader election thrashing
-    peer-election-timeout: 2000
-    # heartbeat interval should ideally be 1/4 or 1/5 of peer election timeout
-    peer-heartbeat-interval: 500
+    # multi-region and multi-cloud deployments need to use $public_ipv4
+    advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    # listen on both the official ports and the legacy ports
+    # legacy ports can be omitted if your application doesn't depend on them
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
   fleet:
     # allow etcd to slow down at times
     etcd_request_timeout: 3.0
-    metadata: host_type=persistent
+    metadata: host_type=stateless
   units:
-    - name: etcd.service
+    - name: authorized_keys.service
+      command: start
+      content: |
+          [Unit]
+          Description=Update authorized_keys
+
+          [Service]
+          Type=oneshot
+          ExecStartPre=/bin/sh -c "mkdir -p /home/core/.ssh && touch /home/core/.ssh/authorized_keys"
+          ExecStart=/bin/sh -c "curl -sSL --retry 5 --retry-delay 2 -o /tmp/authorized_keys.sha512 https://raw.githubusercontent.com/Financial-Times/up-ssh-keys/master/authorized_keys.sha512"
+          ExecStart=/bin/sh -c "curl -sSL --retry 5 --retry-delay 2 -o /tmp/authorized_keys https://raw.githubusercontent.com/Financial-Times/up-ssh-keys/master/authorized_keys"
+          ExecStart=/bin/sh -c "cd /tmp/ && sha512sum -c authorized_keys.sha512 && cp authorized_keys /home/core/.ssh/authorized_keys && chmod 700 /home/core/.ssh && chmod 600 /home/core/.ssh/authorized_keys && chown -R core:core /home/core/.ssh"
+    - name: authorized_keys.timer
+      command: start
+      content: |
+          [Unit]
+          Description=Authorized keys timer
+          
+          [Timer]
+          OnBootSec=1min
+          OnUnitActiveSec=1min
+          
+          [Install]
+          WantedBy=timers.target
+    - name: swapon.service
+      command: start
+      content: |
+          [Unit]
+          Description=Create swap
+
+          [Service]
+          Type=oneshot
+          Environment="SWAPFILE=/swapfile"
+          RemainAfterExit=true
+          ExecStartPre=/usr/bin/touch ${SWAPFILE}
+          ExecStartPre=/usr/bin/fallocate -l 4096m ${SWAPFILE}
+          ExecStartPre=/usr/bin/chmod 600 ${SWAPFILE}
+          ExecStartPre=/usr/sbin/mkswap ${SWAPFILE}
+          ExecStartPre=/usr/sbin/losetup -f ${SWAPFILE}
+          ExecStart=/usr/bin/sh -c "/sbin/swapon $(/usr/sbin/losetup -j ${SWAPFILE} | /usr/bin/cut -d : -f 1)"
+          ExecStop=/usr/bin/sh -c "/sbin/swapoff $(/usr/sbin/losetup -j ${SWAPFILE} | /usr/bin/cut -d : -f 1)"
+          ExecStopPost=/usr/bin/sh -c "/usr/sbin/losetup -d $(/usr/sbin/losetup -j ${SWAPFILE} | /usr/bin/cut -d : -f 1)"
+
+          [Install]
+          WantedBy=multi-user.target
+    - name: etcd2.service
       command: start
     - name: fleet.service
       command: start
@@ -24,17 +71,22 @@ coreos:
       command: start
       content: |
           [Unit]
-          Description=Add secret keys to etcd
-          After=etcd.service
+          Description=Add secret keys to etcd2
 
           [Service]
           Type=oneshot
-          ExecStartPre=/bin/sh -c "sleep 5"
-          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_access_key_id {{ aws_access_key_id }};"
-          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/aws_secret_access_key {{ aws_secret_access_key }};"
-          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/elb_name coreos-registry-{{cp.msg}};"
-          ExecStart=/bin/sh -c "etcdctl set /ft/_credentials/aws/s3_bucket com.ft.coco-docker-registry;"
-          ExecStart=/bin/sh -c "etcdctl set /ft/config/service-definition-location '{{service_definition_location}}'"
+          ExecStartPre=/bin/sh -c "while true; do etcdctl cluster-health && break || sleep 2; done"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/aws_access_key_id '{{ aws_access_key_id }}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/aws_secret_access_key '{{ aws_secret_access_key }}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/elb_name 'coreos-registry-{{clusterid}}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/konstructor/api-key '{{ konstructor_api_key }}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/s3_bucket com.ft.coco-docker-registry;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/logstash-forwarder/cert '{{ logstash_forwarder_crt }}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/config/environment_tag '{{environment_tag}}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/config/aws_region '{{region}}' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/config/splunk-forwarder/splunk_url 'https://ingest.splunk.glb.ft.com/coco-up/fleet' > /dev/null 2>&1 || true;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/config/services-definition-root-uri '{{services_definition_root_uri}}' > /dev/null 2>&1 || true;"
+
     - name: bootstrap.service
       command: start
       content: |
@@ -42,40 +94,24 @@ coreos:
           Description=Start fleet services
           After=fleet.service
           Requires=fleet.service
+
           [Service]
           Type=oneshot
-          ExecStart=/bin/bash -c "fleetctl start /tmp/deployer.service"
-          ExecStart=/bin/bash -c "fleetctl start /tmp/deployer.timer"
+          ExecStartPre=/bin/sh -c "while true; do etcdctl cluster-health && fleetctl list-units && break || sleep 5; done"
+          ExecStart=/bin/sh -c "curl -sSL --retry 5 --retry-delay 2 -o /tmp/deployer.service https://raw.githubusercontent.com/Financial-Times/coco-fleet-deployer/master/deployer.service && fleetctl start /tmp/deployer.service"
+    
 write_files:
   - path: /etc/systemd/system/fleet.socket.d/30-ListenStream.conf
     content: |
       [Socket]
       ListenStream=0.0.0.0:49153
-  - path: /tmp/deployer.service
+  - path: /etc/motd.d/env.conf
     content: |
-      [Unit]
-      Description=Deployer
-      After=docker.service
-      Requires=docker.service
-      [Service]
-      Environment="DOCKER_APP_VERSION=latest"
-      TimeoutStartSec=0
-      Type=oneshot
-      ExecStartPre=-/bin/bash -c '/usr/bin/docker kill %p > /dev/null 2>&1'
-      ExecStartPre=-/bin/bash -c '/usr/bin/docker rm %p > /dev/null 2>&1'
-      ExecStartPre=/bin/bash -c '/usr/bin/docker pull coco/coco-fleet-deployer:$DOCKER_APP_VERSION'
-      ExecStart=/bin/bash -c "SERVICE_DEFINITION_LOCATION=$(etcdctl get /ft/config/service-definition-location); docker run -v '/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt' --rm --name %p --env=\"FLEET_ENDPOINT=http://$HOSTNAME:49153\" --env=\"SERVICES_DEFINITION_FILE_URI=$SERVICE_DEFINITION_LOCATION\" --env=\"DESTROY=true\" coco/coco-fleet-deployer:$DOCKER_APP_VERSION"
-  - path: /tmp/deployer.timer
+            This enviroment is tagged as {{environment_tag}} and is cluster {{token}}
+  - path: /home/core/.toolboxrc
+    owner: core
     content: |
-      [Unit]
-      Description=Deployer timer
-      
-      [Timer]
-      OnUnitActiveSec=1m
-      
-      [Install]
-      WantedBy=timers.target
-      
-      [X-Fleet]
-      MachineOf=deployer.service
-{% include 'ssh_authorized_keys.yaml' %}
+      TOOLBOX_DOCKER_IMAGE=coco/coco-toolbox
+      TOOLBOX_DOCKER_TAG=latest
+      TOOLBOX_USER=root
+

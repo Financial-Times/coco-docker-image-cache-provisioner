@@ -4,7 +4,7 @@
 
 ```
 # Build the image
-docker build -t coco/coreos-registry-setup .
+docker build -t coco/registry-provisioner .
 
 # Set all the required variables
 TOKEN_URL=https://discovery.etcd.io/xxxxxx
@@ -14,6 +14,6 @@ AWS_SECRET_ACCESS_KEY=xxxxxxx
 AWS_ACCESS_KEY_ID=xxxxxxxx
 
 # Run the image
-docker run --env "TOKEN_URL=$TOKEN_URL" --env "VAULT_PASS=$VAULT_PASS" --env "SERVICE_DEFINITION_LOCATION=$SERVICE_DEFINITION_LOCATION" --env "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" --env "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" coco/coreos-registry-setup
+docker run --env "TOKEN_URL=$TOKEN_URL" --env "VAULT_PASS=$VAULT_PASS" --env "SERVICE_DEFINITION_LOCATION=$SERVICE_DEFINITION_LOCATION" --env "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" --env "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" coco/registry-provisioner
 ```
 

@@ -4,67 +4,110 @@
   vars:
     region: eu-west-1
     az: a
-    ami: ami-50f4b927
+    ami: ami-c26bcab1 #eu-west-1 HMV 835.9.0 (stable)
+    #ami: ami-c3cae3b4 #eu-west-1 HMV CoreOS 815.0.0 (alpha)
     env: p
     ipcode: P295
     systemCode: "CoreOS-Docker-Image-Registry"
     description: "CoreOS-Docker-Image-Registry"
     teamDL: "george.angel@ft.com"
-
   vars_files:
     - keys.yaml
 
   tasks:
-    - debug: msg="{{ token | regex_replace('^https?:\\/\\/[\\w\\.]*\\/([\\w]{8})[\\w]*$', '\\1') }}"
-      register:  cp
-
     - ec2_vpc:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
         state: present
-        cidr_block: 172.23.0.0/16
+        cidr_block: 172.24.0.0/16
         resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS", "teamDL": "george.angel@ft.com}"}
         subnets:
-          - cidr: 172.23.0.0/16
-            az:  "{{ region }}{{az}}"
-            resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS", "teamDL": "george.angel@ft.com}"}
+          - cidr: 172.24.0.0/18
+            az:  "{{ region }}a"
+            resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS subnet A", "teamDL": "george.angel@ft.com}"}
+
+          - cidr: 172.24.64.0/18
+            az:  "{{ region }}b"
+            resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS subnet B", "teamDL": "george.angel@ft.com}"}
+
+          - cidr: 172.24.128.0/18
+            az:  "{{ region }}c"
+            resource_tags: {"Name": "coreos", "env": "p", "ipcode": "P295", "systemCode": "CoreOS", "description": "CoreOS subnet C", "teamDL": "george.angel@ft.com}"}
         internet_gateway: True
         route_tables:
           - subnets:
-              - 172.23.0.0/16
+              - 172.24.0.0/18
+              - 172.24.64.0/18
+              - 172.24.128.0/18
             routes:
               - dest: 0.0.0.0/0
                 gw: igw
       register: vpc
-
-    - debug: msg="VPC {{ vpc }}"
-
+    
     - name: Set up fleet security group
       ec2_group:
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "coreos-registry-{{ cp.msg }}"
+        name: "coreos-registry-{{clusterid}}"
         description: Docker image registry security group
         vpc_id: "{{ vpc.vpc_id }}"
         rules:
+          # OSB + LDNWebPerf
           - proto: tcp
             from_port: 22
             to_port: 22
-            cidr_ip: 0.0.0.0/0
+            cidr_ip: 82.136.1.214/32
+          # XP - Cluj office
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 194.117.242.0/23
+          # aws - jumpbox
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 52.16.117.250/32
+          # Garton M - home
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 81.187.140.32/32
+          # aws - jumpbox fleet API
+          - proto: tcp
+            from_port: 49153
+            to_port: 49153
+            cidr_ip: 52.16.117.250/32
+          # Allow 80 from everywhere
           - proto: tcp
             from_port: 80
             to_port: 80
             cidr_ip: 0.0.0.0/0
+          # Allow 8081 (healthcheck aggregator) from everywhere
+          - proto: tcp
+            from_port: 8081
+            to_port: 8081
+            cidr_ip: 0.0.0.0/0
+          # Allow 443 from everywhere
+          - proto: tcp
+            from_port: 443
+            to_port: 443
+            cidr_ip: 0.0.0.0/0
+          # Allow internal requests
           - proto: tcp
             from_port: 0
             to_port: 65535
-            cidr_ip: 172.23.0.0/16
+            cidr_ip: 172.24.0.0/16
         rules_egress:
           - proto: tcp
             from_port: 0
             to_port: 65535
+            cidr_ip: 0.0.0.0/0
+          # Allow timesync/ntp out
+          - proto: udp
+            from_port: 123
+            to_port: 123
             cidr_ip: 0.0.0.0/0
       register: registry_group
 
@@ -76,7 +119,7 @@
         region: "{{region}}"
         state: present
         tags:
-          Name: "coreos-registry-{{ cp.msg }}"
+          Name: "coreos-registry-{{clusterid}}"
           env: "{{env}}"
           ipcode: "{{ipcode}}"
           systemCode: "{{systemCode}}"
@@ -96,7 +139,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        name: "coreos-registry-{{cp.msg}}"
+        name: "coreos-registry-{{clusterid}}"
         state: present
         security_group_ids: '{{registry_group.group_id}}'
         subnets:
@@ -105,6 +148,9 @@
           - protocol: http
             load_balancer_port: 80
             instance_port: 80
+          - protocol: http
+            load_balancer_port: 8081
+            instance_port: 8081
         purge_listeners: True
         health_check:
           ping_protocol: tcp # options are http, https, ssl, tcp
@@ -117,7 +163,7 @@
       register: registry_elb
 
     - name: tag ELB
-      shell: ". /.venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{cp.msg}} --tags Key=Name,Value=coreos-registry-{{cp.msg}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
+      shell: ". /.venv/bin/activate && aws --region {{region}} elb add-tags --load-balancer-names coreos-registry-{{clusterid}} --tags Key=Name,Value=coreos-registry-{{clusterid}} Key=env,Value={{env}} Key=ipcode,Value={{ipcode}} Key=systemCode,Value={{systemCode}} Key=description,Value={{description}} Key=teamDL,Value={{teamDL}}"
 
     - debug: msg="registry_dns {{ registry_elb.elb.dns_name }}"
 
@@ -126,7 +172,7 @@
         aws_access_key: "{{ aws_access_key_id }}"
         aws_secret_key: "{{ aws_secret_access_key }}"
         region: "{{region}}"
-        group: "coreos-registry-{{ cp.msg }}"
+        group: "coreos-registry-{{clusterid}}"
         image: "{{ami}}"
         instance_type: m3.medium
         wait: true
@@ -136,11 +182,11 @@
         assign_public_ip: yes
         volumes:
           - device_name: /dev/xvda
-            volume_size: 30
+            volume_size: 50
         count_tag:
-          Name: "ftreg{{cp.msg}}-caw1{{az}}-eu-p"
+          Name: "ftreg{{clusterid}}-caw1{{az}}-eu-p"
         instance_tags:
-          Name: "ftreg{{cp.msg}}-caw1{{az}}-eu-p"
+          Name: "ftreg{{clusterid}}-caw1{{az}}-eu-p"
           environment: "{{env}}"
           ipCode: "{{ipcode}}"
           systemCode: "{{systemCode}}"
@@ -148,6 +194,3 @@
           teamDL: "{{teamDL}}"
           stopSchedule: "nostop"
       register: ec2_small
-
-    - debug: msg="ec2_small ips {{ item.public_ip }}"
-      with_items: "{{ ec2_small.tagged_instances }}"
