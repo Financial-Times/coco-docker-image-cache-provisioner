@@ -84,10 +84,10 @@
             from_port: 80
             to_port: 80
             cidr_ip: 0.0.0.0/0
-          # Allow 8081 (healthcheck aggregator) from everywhere
+          # Allow 8080 (vulcan for healthcheck) from everywhere
           - proto: tcp
-            from_port: 8081
-            to_port: 8081
+            from_port: 8080
+            to_port: 8080
             cidr_ip: 0.0.0.0/0
           # Allow 443 from everywhere
           - proto: tcp
@@ -126,13 +126,13 @@
           description: "{{description}}"
           teamDL: "{{teamDL}}"
 
-    - s3:
-        aws_access_key: "{{ aws_access_key_id }}"
-        aws_secret_key: "{{ aws_secret_access_key }}"
-        region: "{{region}}"
-        bucket: "com.ft.coco-docker-registry"
-        object: "/coco-reg"
-        mode: "create"
+    #- s3:
+    #    aws_access_key: "{{ aws_access_key_id }}"
+    #    aws_secret_key: "{{ aws_secret_access_key }}"
+    #    region: "{{region}}"
+    #    bucket: "com.ft.coco-docker-registry"
+    #    object: "/coco-reg"
+    #    mode: "create"
 
     - name: Registry ELB
       ec2_elb_lb:
@@ -193,4 +193,4 @@
           description: "{{description}}"
           teamDL: "{{teamDL}}"
           stopSchedule: "nostop"
-      register: ec2_small
+
