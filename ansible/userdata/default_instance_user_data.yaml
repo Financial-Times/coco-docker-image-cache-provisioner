@@ -80,7 +80,7 @@ coreos:
           ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/aws_secret_access_key '{{ aws_secret_access_key }}' > /dev/null 2>&1 || true;"
           ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/elb_name 'coreos-registry-{{clusterid}}' > /dev/null 2>&1 || true;"
           ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/konstructor/api-key '{{ konstructor_api_key }}' > /dev/null 2>&1 || true;"
-          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/s3_bucket com.ft.coco-docker-registry;"
+          ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/aws/s3_bucket com.ft.coco-docker-registry.prod;"
           ExecStart=/bin/sh -c "etcdctl mk /ft/_credentials/logstash-forwarder/cert '{{ logstash_forwarder_crt }}' > /dev/null 2>&1 || true;"
           ExecStart=/bin/sh -c "etcdctl mk /ft/config/environment_tag '{{environment_tag}}' > /dev/null 2>&1 || true;"
           ExecStart=/bin/sh -c "etcdctl mk /ft/config/aws_region '{{region}}' > /dev/null 2>&1 || true;"
